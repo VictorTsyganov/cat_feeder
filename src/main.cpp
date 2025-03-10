@@ -9,13 +9,13 @@
 #define STEPS_FRW 12
 #define STEPS_BKW 19
 #define FEED_SPEED 2000
-#define EE_RESET 11
+#define EE_RESET 12
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 Button btn(BTN);
 MicroDS3231 rtc;
 
-int feedAmount = 40;
+int feedAmount = 30;
 const byte drvPins[] = {3, 4, 5, 6};
 const byte feedTime[][2] = {
   {6, 30},
@@ -23,6 +23,7 @@ const byte feedTime[][2] = {
   {19, 0},
   {23, 55},
 };
+bool feedByTimer = true;
 
 void showFeederMessage(int caseNum) {
   lcd.clear();
@@ -36,6 +37,12 @@ void showFeederMessage(int caseNum) {
     break;
   
   case 3: lcd.print("TM Feed Am: "+ String(feedAmount));
+    break;
+
+  case 4: lcd.print("TMF active: "+ String(feedAmount));
+    break;
+
+  case 5: lcd.print("TMF stopped!!!");
     break;
 
   default: lcd.print("Started. Am "+ String(feedAmount));
@@ -95,19 +102,22 @@ void feed() {
 
 void loop() {
   static uint32_t tmr = 0;
-  if (millis() - tmr > 500) {
-    static byte prevMin = 0;
-    tmr = millis();
-    DateTime now = rtc.getTime();
-    if (prevMin != now.minute) {
-      prevMin = now.minute;
-      for (byte i = 0; i < sizeof(feedTime) / 2; i++)
-        if (feedTime[i][0] == now.hour && feedTime[i][1] == now.minute) {
-          feed();
-          showFeederMessage(3);
-        }
+  if(feedByTimer) {
+    if (millis() - tmr > 500) {
+      static byte prevMin = 0;
+      tmr = millis();
+      DateTime now = rtc.getTime();
+      if (prevMin != now.minute) {
+        prevMin = now.minute;
+        for (byte i = 0; i < sizeof(feedTime) / 2; i++)
+          if (feedTime[i][0] == now.hour && feedTime[i][1] == now.minute) {
+            feed();
+            showFeederMessage(3);
+          }
+      }
     }
   }
+  
   static uint32_t tmr2 = 0;
   if (millis() - tmr2 > 250) {
     tmr2 = millis();
@@ -115,7 +125,7 @@ void loop() {
   }
 
   btn.tick();
-  if (btn.click()) {
+  if (btn.hasClicks(2)) {
     feed();
     showFeederMessage(2);
   }
@@ -131,5 +141,13 @@ void loop() {
     feedAmount = newAmount;
     EEPROM.put(1, feedAmount);
     showFeederMessage(1);
+  }
+  if(btn.click()) {
+    feedByTimer = !feedByTimer;
+    if(feedByTimer) {
+      showFeederMessage(4);
+    } else {
+      showFeederMessage(5);
+    }
   }
 }
