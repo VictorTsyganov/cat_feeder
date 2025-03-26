@@ -10,6 +10,9 @@
 #define STEPS_BKW 19
 #define FEED_SPEED 2000
 #define EE_RESET 12
+#define UPPER_SENSOR 11
+#define FRONT_SENSOR 12
+#define FOUNTAIN_MOTOR 13
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 Button btn(BTN);
@@ -24,6 +27,7 @@ const byte feedTime[][2] = {
   {23, 55},
 };
 bool feedByTimer = true;
+bool feeding = false;
 
 void showFeederMessage(int caseNum) {
   lcd.clear();
@@ -55,6 +59,9 @@ void setup() {
   lcd.init();
 	lcd.backlight();
   rtc.begin();
+  pinMode(UPPER_SENSOR, INPUT);
+  pinMode(FRONT_SENSOR, INPUT);
+  pinMode(FOUNTAIN_MOTOR, 1);
   if (EEPROM.read(0) != EE_RESET) {
     EEPROM.write(0, EE_RESET);
     EEPROM.put(1, feedAmount);
@@ -95,12 +102,34 @@ void disableMotor() {
   for (byte i = 0; i < 4; i++) digitalWrite(drvPins[i], 0);
 }
 
-void feed() {
-  for (int i = 0; i < feedAmount; i++) oneRev();
-  disableMotor();
+void disableFountain() {
+  digitalWrite(FOUNTAIN_MOTOR, 0);
 }
 
+void feed() {
+  disableFountain();
+  feeding = true;
+  for (int i = 0; i < feedAmount; i++) oneRev();
+  disableMotor();
+  feeding = false;
+}
+
+void fountain() {
+  digitalWrite(FOUNTAIN_MOTOR, 1);
+};
+
 void loop() {
+  boolean upper_sensor = digitalRead(UPPER_SENSOR);
+  boolean front_sensor = digitalRead(FRONT_SENSOR);
+  if(!upper_sensor && !feeding){
+    fountain();
+    delay(5000);
+  } else if(!front_sensor && !feeding) {
+    fountain();
+    delay(5000);
+  } else {
+    disableFountain();
+  };
   static uint32_t tmr = 0;
   if(feedByTimer) {
     if (millis() - tmr > 500) {
